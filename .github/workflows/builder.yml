@@ -1,124 +1,99 @@
-name: Build Kernel android16-6.12
+name: Build KernelSU-Next
+
+permissions:
+  contents: write
+  actions: write
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
+      android_version:
+        type: string
+        required: true
+      kernel_version:
+        type: string
+        required: true
+      sub_level:
+        type: string
+        required: true
+      os_patch_level:
+        type: string
+        required: true
       variant:
-        description: "Kernel variant"
-        required: true
+        type: string
         default: "SUSFS"
-        type: choice
-        options:
-          - VNL
-          - KSU
-          - SUSFS
-      hz:
-        description: "CONFIG_HZ"
-        required: true
+      confighz:
+        type: string
         default: "250"
-        type: choice
-        options:
-          - "250"
-          - "300"
-      tcp_cong:
-        description: "TCP congestion control"
-        required: true
+      tcpcong:
+        type: string
         default: "bbr"
-        type: choice
-        options:
-          - bbr
-          - westwood
-      lto:
-        description: "LTO mode"
-        required: true
-        default: "thin"
-        type: choice
-        options:
-          - thin
-          - full
-      build_type:
-        description: "Build type"
-        required: true
-        default: "test"
-        type: choice
-        options:
-          - test
-          - release
+      add_zeromount:
+        type: boolean
+        default: true
+
+    secrets:
+      TELEGRAM_BOT_TOKEN:
+        required: false
+      TELEGRAM_CHAT_ID:
+        required: false
 
 jobs:
   build:
+    name: "${{ inputs.variant }} ${{ inputs.kernel_version }}.${{ inputs.sub_level }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 180
-
+    timeout-minutes: 90
     env:
+      ANDROID_VER: ${{ inputs.android_version }}
+      KERNEL_VER: ${{ inputs.kernel_version }}
+      SUB_LEVEL: ${{ inputs.sub_level }}
+      OS_PATCH: ${{ inputs.os_patch_level }}
       VARIANT: ${{ inputs.variant }}
-      CONFIGHZ: ${{ inputs.hz }}
-      TCPCONG: ${{ inputs.tcp_cong }}
-      LTOBUILD: ${{ inputs.lto }}
-      BUILD_TYPE: ${{ inputs.build_type }}
-      BUILDER_REPO: https://github.com/Cartethyiaaa/builder
-      BUILDER_BRANCH: master
+      CONFIGHZ: ${{ inputs.confighz }}
+      TCPCONG: ${{ inputs.tcpcong }}
+      ADD_ZEROMOUNT: ${{ inputs.add_zeromount }}
+      KERNEL_NAME: Kinosaki
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
     steps:
-      - name: Free Disk Space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
+    - name: Checkout
+      uses: actions/checkout@v6
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq \
-            git curl zip unzip python3 python3-pip \
-            bc bison flex libssl-dev libelf-dev \
-            build-essential ccache
+    - name: Free Disk Space
+      uses: endersonmenezes/free-disk-space@v3
+      with:
+        remove_android: true
+        remove_dotnet: true
+        remove_haskell: true
+        remove_tool_cache: true
+        remove_swap: true
+        remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* temurin-* *llvm* mysql* dotnet-sdk-*"
+        remove_packages_one_command: true
+        remove_folders: "/usr/share/swift /usr/share/miniconda /usr/share/az* /usr/local/lib/node_modules /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle"
+        rm_cmd: "rmz"
+        rmz_version: "3.1.1"
+        testing: false
 
-      - name: Install Official Google Repo Launcher
-        run: |
-          mkdir -p $HOME/.bin
-          curl https://storage.googleapis.com/git-repo-downloads/repo > $HOME/.bin/repo
-          chmod a+x $HOME/.bin/repo
-          echo "$HOME/.bin" >> $GITHUB_PATH
+    - name: Build
+      run: |
+        chmod +x ksu-build.sh
+        ./build.sh
 
-      - name: Setup Swap
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 20
+    - name: Upload Artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.FILE_NAME }}-AnyKernel3
+        path: ${{ github.workspace }}/${{ env.FILE_NAME }}.zip
+        if-no-files-found: error
+        compression-level: 9
 
-      - name: Initialize Manifest Workspace
-        run: |
-          repo init -u https://android.googlesource.com/kernel/manifest -b common-android16-6.12 --depth=1
-
-      - name: Checkout custom kernel source into common/
-        uses: actions/checkout@v4
-        with:
-          path: common
-
-      - name: Sync toolchains and manifest workspace
-        run: |
-          repo sync -c -j$(nproc --all) --fail-fast --no-tags --force-sync --no-clone-bundle
-
-      - name: Make build script executable
-        run: chmod +x common/build.sh
-
-      - name: Build kernel
-        run: ./common/build.sh
-
-      - name: Upload artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-${{ inputs.variant }}-${{ github.run_number }}
-          path: artifacts/*.zip
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Upload build log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log-${{ github.run_number }}
-          path: build.log
-          retention-days: 7
+    - name: Upload Rejects
+      if: always() && env.REJ_COUNT > 0
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.FILE_NAME }}-Rejects
+        path: patch-rejects/
+        if-no-files-found: ignore
+        compression-level: 9
