@@ -1,0 +1,118 @@
+name: Build Kernel android16-6.12
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "Kernel variant"
+        required: true
+        default: "SUSFS"
+        type: choice
+        options:
+          - VNL
+          - KSU
+          - SUSFS
+      hz:
+        description: "CONFIG_HZ"
+        required: true
+        default: "300"
+        type: choice
+        options:
+          - "100"
+          - "250"
+          - "300"
+          - "1000"
+      tcp_cong:
+        description: "TCP congestion control"
+        required: true
+        default: "bbr"
+        type: choice
+        options:
+          - bbr
+          - westwood
+      lto:
+        description: "LTO mode"
+        required: true
+        default: "thin"
+        type: choice
+        options:
+          - thin
+          - full
+          - none
+      build_type:
+        description: "Build type"
+        required: true
+        default: "test"
+        type: choice
+        options:
+          - test
+          - release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    env:
+      VARIANT: ${{ inputs.variant }}
+      CONFIGHZ: ${{ inputs.hz }}
+      TCPCONG: ${{ inputs.tcp_cong }}
+      LTOBUILD: ${{ inputs.lto }}
+      BUILD_TYPE: ${{ inputs.build_type }}
+      BUILDER_REPO: https://github.com/Cartethyiaaa/builder
+      BUILDER_BRANCH: master
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          sudo docker image prune --all --force 2>/dev/null || true
+          df -h
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            git curl zip unzip python3 python3-pip \
+            bc bison flex libssl-dev libelf-dev \
+            build-essential ccache openjdk-17-jre-headless
+
+      - name: Cache Bazel output base
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazelisk
+          key: bazel-${{ inputs.variant }}-${{ hashFiles('build.sh') }}
+          restore-keys: |
+            bazel-${{ inputs.variant }}-
+            bazel-
+
+      - name: Make build script executable
+        run: chmod +x build.sh
+
+      - name: Build kernel
+        run: ./build.sh
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ inputs.variant }}-${{ github.run_number }}
+          path: artifacts/*.zip
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ github.run_number }}
+          path: build.log
+          retention-days: 7
