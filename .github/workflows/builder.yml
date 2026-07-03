@@ -62,14 +62,10 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
     steps:
-      - name: Checkout kernel source
-        uses: actions/checkout@v4
-
       - name: Free Disk Space
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
-          sudo apt clean
 
       - name: Install dependencies
         run: |
@@ -77,23 +73,38 @@ jobs:
           sudo apt-get install -y -qq \
             git curl zip unzip python3 python3-pip \
             bc bison flex libssl-dev libelf-dev \
-            build-essential ccache repo
+            build-essential ccache
+
+      - name: Install Official Google Repo Launcher
+        run: |
+          mkdir -p $HOME/.bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > $HOME/.bin/repo
+          chmod a+x $HOME/.bin/repo
+          echo "$HOME/.bin" >> $GITHUB_PATH
 
       - name: Setup Swap
         uses: pierotofy/set-swap-space@master
         with:
           swap-size-gb: 20
 
-      - name: sync repo
+      - name: Initialize Manifest Workspace
         run: |
           repo init -u https://android.googlesource.com/kernel/manifest -b common-android16-6.12 --depth=1
+
+      - name: Checkout custom kernel source into common/
+        uses: actions/checkout@v4
+        with:
+          path: common
+
+      - name: Sync toolchains and manifest workspace
+        run: |
           repo sync -c -j$(nproc --all) --fail-fast --no-tags --force-sync --no-clone-bundle
 
       - name: Make build script executable
-        run: chmod +x build.sh
+        run: chmod +x common/build.sh
 
       - name: Build kernel
-        run: ./build.sh
+        run: ./common/build.sh
 
       - name: Upload artifact
         if: always()
