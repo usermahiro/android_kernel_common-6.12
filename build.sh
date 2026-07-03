@@ -163,7 +163,6 @@ echo "CONFIG_HZ=${CONFIGHZ}" >> "$DEFCONFIG"
 # LTO.
 case "${LTOBUILD,,}" in
   thin) BAZEL_LTO_FLAG="--lto=thin" ;;
-  none) BAZEL_LTO_FLAG="--lto=none" ;;
   full|*) BAZEL_LTO_FLAG="--lto=full" ;;
 esac
 info "LTO: ${LTOBUILD,,} (${BAZEL_LTO_FLAG})"
@@ -171,9 +170,8 @@ info "LTO: ${LTOBUILD,,} (${BAZEL_LTO_FLAG})"
 # TCP Congestion
 case "$TCPCONG" in
   westwood) use_westwood ;;
-  bbrplus)  use_bbrplus ;;
   bbr)      use_bbr ;;
-  *) die "Unknown TCP congestion: $TCPCONG (valid: bbr | bbrplus | westwood)" ;;
+  *) die "Unknown TCP congestion: $TCPCONG (valid: bbr | westwood)" ;;
 esac
 
 # Localversion

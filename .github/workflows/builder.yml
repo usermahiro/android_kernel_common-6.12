@@ -15,13 +15,11 @@ on:
       hz:
         description: "CONFIG_HZ"
         required: true
-        default: "300"
+        default: "250"
         type: choice
         options:
-          - "100"
           - "250"
           - "300"
-          - "1000"
       tcp_cong:
         description: "TCP congestion control"
         required: true
@@ -38,7 +36,6 @@ on:
         options:
           - thin
           - full
-          - none
       build_type:
         description: "Build type"
         required: true
@@ -68,12 +65,11 @@ jobs:
       - name: Checkout kernel source
         uses: actions/checkout@v4
 
-      - name: Free up disk space
+      - name: Free Disk Space
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-            /opt/hostedtoolcache/CodeQL "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
-          sudo docker image prune --all --force 2>/dev/null || true
-          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo apt clean
 
       - name: Install dependencies
         run: |
@@ -81,18 +77,17 @@ jobs:
           sudo apt-get install -y -qq \
             git curl zip unzip python3 python3-pip \
             bc bison flex libssl-dev libelf-dev \
-            build-essential ccache openjdk-17-jre-headless
+            build-essential ccache
 
-      - name: Cache Bazel output base
-        uses: actions/cache@v4
+      - name: Setup Swap
+        uses: pierotofy/set-swap-space@master
         with:
-          path: |
-            ~/.cache/bazel
-            ~/.cache/bazelisk
-          key: bazel-${{ inputs.variant }}-${{ hashFiles('build.sh') }}
-          restore-keys: |
-            bazel-${{ inputs.variant }}-
-            bazel-
+          swap-size-gb: 20
+
+      - name: sync repo
+        run: |
+          repo init -u https://android.googlesource.com/kernel/manifest -b common-android16-6.12 --depth=1
+          repo sync -c -j$(nproc --all) --fail-fast --no-tags --force-sync --no-clone-bundle
 
       - name: Make build script executable
         run: chmod +x build.sh
