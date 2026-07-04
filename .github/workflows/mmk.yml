@@ -36,7 +36,7 @@ on:
 
 jobs:
   call-build:
-    uses: ./.github/workflows/build-kernelsu-next.yml
+    uses: ./.github/workflows/builder.yml
     with:
       android_version: ${{ inputs.android_version }}
       kernel_version: ${{ inputs.kernel_version }}
