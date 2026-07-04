@@ -1,0 +1,51 @@
+name: Trigger Kernel Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      android_version:
+        description: "Android version branch (e.g. android16)"
+        required: true
+        default: "android16"
+      kernel_version:
+        description: "Kernel version (e.g. 6.12)"
+        required: true
+        default: "6.12"
+      sub_level:
+        description: "Kernel sub_level (safe to guess low — auto-corrected from Makefile after sync)"
+        required: true
+        default: "0"
+      os_patch_level:
+        description: "OS patch level (e.g. 2025-11)"
+        required: true
+      variant:
+        type: choice
+        default: "SUSFS"
+        options: [VNL, KSU, SUSFS]
+      confighz:
+        type: choice
+        default: "250"
+        options: ["100", "250", "300", "1000"]
+      tcpcong:
+        type: choice
+        default: "bbr"
+        options: [bbr, bbrplus, westwood]
+      add_zeromount:
+        type: boolean
+        default: true
+
+jobs:
+  call-build:
+    uses: ./.github/workflows/build-kernelsu-next.yml
+    with:
+      android_version: ${{ inputs.android_version }}
+      kernel_version: ${{ inputs.kernel_version }}
+      sub_level: ${{ inputs.sub_level }}
+      os_patch_level: ${{ inputs.os_patch_level }}
+      variant: ${{ inputs.variant }}
+      confighz: ${{ inputs.confighz }}
+      tcpcong: ${{ inputs.tcpcong }}
+      add_zeromount: ${{ inputs.add_zeromount }}
+    secrets:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
