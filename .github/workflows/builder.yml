@@ -1,99 +1,27 @@
-name: Build KernelSU-Next
-
-permissions:
-  contents: write
-  actions: write
+name: Sync dari android_kernel_common
 
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
-      android_version:
-        type: string
-        required: true
-      kernel_version:
-        type: string
-        required: true
-      sub_level:
-        type: string
-        required: true
-      os_patch_level:
-        type: string
-        required: true
-      variant:
-        type: string
-        default: "SUSFS"
-      confighz:
-        type: string
-        default: "250"
-      tcpcong:
-        type: string
-        default: "bbr"
-      add_zeromount:
-        type: boolean
-        default: true
+      src_branch:
+        description: "Branch di repo sumber"
+        default: "6.12"
+      dst_branch:
+        description: "Branch tujuan di repo ini"
+        default: "6.12"
 
-    secrets:
-      TELEGRAM_BOT_TOKEN:
-        required: false
-      TELEGRAM_CHAT_ID:
-        required: false
+env:
+  SRC_REPO: https://github.com/usermahiro/android_kernel_common.git
 
 jobs:
-  build:
-    name: "${{ inputs.variant }} ${{ inputs.kernel_version }}.${{ inputs.sub_level }}"
+  sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    env:
-      ANDROID_VER: ${{ inputs.android_version }}
-      KERNEL_VER: ${{ inputs.kernel_version }}
-      SUB_LEVEL: ${{ inputs.sub_level }}
-      OS_PATCH: ${{ inputs.os_patch_level }}
-      VARIANT: ${{ inputs.variant }}
-      CONFIGHZ: ${{ inputs.confighz }}
-      TCPCONG: ${{ inputs.tcpcong }}
-      ADD_ZEROMOUNT: ${{ inputs.add_zeromount }}
-      KERNEL_NAME: Kinosaki
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-
     steps:
-    - name: Checkout
-      uses: actions/checkout@v6
+      - name: Clone sumber (branch ${{ inputs.src_branch }})
+        run: |
+          git clone --branch "${{ inputs.src_branch }}" --single-branch "$SRC_REPO" src
 
-    - name: Free Disk Space
-      uses: endersonmenezes/free-disk-space@v3
-      with:
-        remove_android: true
-        remove_dotnet: true
-        remove_haskell: true
-        remove_tool_cache: true
-        remove_swap: true
-        remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* temurin-* *llvm* mysql* dotnet-sdk-*"
-        remove_packages_one_command: true
-        remove_folders: "/usr/share/swift /usr/share/miniconda /usr/share/az* /usr/local/lib/node_modules /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle"
-        rm_cmd: "rmz"
-        rmz_version: "3.1.1"
-        testing: false
-
-    - name: Build
-      run: |
-        chmod +x ksu-build.sh
-        ./build.sh
-
-    - name: Upload Artifact
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.FILE_NAME }}-AnyKernel3
-        path: ${{ github.workspace }}/${{ env.FILE_NAME }}.zip
-        if-no-files-found: error
-        compression-level: 9
-
-    - name: Upload Rejects
-      if: always() && env.REJ_COUNT > 0
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.FILE_NAME }}-Rejects
-        path: patch-rejects/
-        if-no-files-found: ignore
-        compression-level: 9
+      - name: Force push ke repo ini
+        run: |
+          cd src
+          git push --f
