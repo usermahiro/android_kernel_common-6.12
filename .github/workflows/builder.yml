@@ -10,6 +10,9 @@ on:
         description: "Branch tujuan di repo ini"
         default: "6.12"
 
+permissions:
+  contents: write
+
 env:
   SRC_REPO: https://github.com/usermahiro/android_kernel_common.git
 
@@ -17,11 +20,17 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Clone sumber (branch ${{ inputs.src_branch }})
-        run: |
-          git clone --branch "${{ inputs.src_branch }}" --single-branch "$SRC_REPO" src
+      - name: Checkout repo ini
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Force push ke repo ini
+      - name: Fetch sumber lalu reset ke HEAD-nya
         run: |
-          cd src
-          git push --f
+          git remote add upstream "$SRC_REPO"
+          git fetch upstream "${{ inputs.src_branch }}"
+          git reset --hard FETCH_HEAD
+
+      - name: Force push
+        run: |
+          git push -f origin "HEAD:refs/heads/${{ inputs.dst_branch }}"
